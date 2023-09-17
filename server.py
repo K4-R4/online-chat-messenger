@@ -1,5 +1,6 @@
 import pickle
 import socket
+import sys
 import threading
 
 
@@ -85,11 +86,11 @@ class Server:
         data = client.tcp_socket.recv(self.buffer_size)
         data_str = data.decode('utf-8')
 
-        room_name, method, max_clients = data_str.split(':', 2)
-        if method == "join":
+        room_name, cnf = data_str.split(':', 1)
+        if cnf == "join":
             self.chat_rooms[room_name].add_client(client.get_id(), client)
-        if method == "create":
-            new_room = ChatRoom(room_name, int(max_clients))
+        else:
+            new_room = ChatRoom(room_name, int(cnf))
             self.chat_rooms[room_name] = new_room
             self.chat_rooms[room_name].add_client(client.get_id(), client)
 
@@ -97,9 +98,9 @@ class Server:
 
     def get_available_rooms(self) -> []:
         available_rooms = []
-        for _, chat_room in self.chat_rooms:
+        for room_name, chat_room in self.chat_rooms.items():
             if not chat_room.is_full():
-                available_rooms.append(chat_room)
+                available_rooms.append(room_name)
         return available_rooms
 
     def notify_available_rooms(self, client: ChatClient):

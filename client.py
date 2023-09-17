@@ -36,7 +36,7 @@ class Client:
         room_name = input('Select room or Input new room: ')
         if room_name not in available_room:
             max_clients = input('Input max clients: ')
-            room_cnf = f'{room_name}:create:{max_clients}'
+            room_cnf = f'{room_name}:{max_clients}'
             self.tcp_socket.send(room_cnf.encode('utf-8'))
 
         else:
