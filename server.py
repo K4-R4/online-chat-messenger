@@ -3,16 +3,31 @@ import socket
 import threading
 
 
+class ChatClient:
+    def __init__(self, tcp_socket: socket, address: str, port: int):
+        self.address = address
+        self.port = port
+        self.tcp_socket = tcp_socket
+
+    def send(self, message: str) -> None:
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_socket.sendto(message.encode('utf-8'), (self.address, self.port))
+        udp_socket.close()
+
+    def get_id(self):
+        return f'{self.address}:{self.port}'
+
+
 class ChatRoom:
-    def __init__(self, title: str, max_clients: int):
-        self.title = title
+    def __init__(self, name: str, max_clients: int):
+        self.name = name
         self.max_clients = max_clients
         self.clients = {}
 
     def is_full(self) -> bool:
         return len(self.clients) >= self.max_clients
 
-    def add_client(self, client_id: str, client: object) -> None:
+    def add_client(self, client_id: str, client: ChatClient) -> None:
         self.clients[client_id] = client
 
     def remove_client(self, client_id) -> None:
@@ -25,27 +40,17 @@ class ChatRoom:
             client.send(message)
 
 
-class ChatClient:
-    def __init__(self, tcp_socket: object, address: str, port: str):
-        self.address = address
-        self.port = port
-        self.tcp_socket = tcp_socket
-
-    def send(self, message: str) -> None:
-        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_socket.sendto(message.encode('utf-8'), (self.address, self.port))
-        udp_socket.close()
-
-
 class Server:
-    def __init__(self, address: str, port: str):
+    def __init__(self, address: str, port: int):
         self.address = address
         self.port = port
         self.chat_rooms = {}
+        self.buffer_size = 1024
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_socket.bind((self.address, self.port))
+        self.udp_socket.bind((self.address, int(self.port)))
 
-        self.wait_client_conn()
+        thread = threading.Thread(target=self.wait_client_conn)
+        thread.start()
 
     def wait_client_conn(self) -> None:
         tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -55,17 +60,40 @@ class Server:
         while True:
             conn, client_address = tcp_socket.accept()
             address, port = client_address
-
-            client = ChatClient(address, port)
+            client = ChatClient(conn, address, port)
             conn.send(f'{address}:{port}'.encode('utf-8'))
-            threading.Thread(target=self.establish_chat, args=(client,))
 
-    def establish_chat(self, client) -> None:
-        available_rooms = self.get_available_rooms()
-        # notify a client of available rooms
-        keys = pickle.dumps(available_rooms)
-        client.tcp_socket.send(keys)
-        # todo
+            thread = threading.Thread(target=self.establish_chat, args=(client,))
+            thread.start()
+
+    def establish_chat(self, client: ChatClient) -> None:
+        self.notify_available_rooms(client)
+        room_name = self.establish_room(client)
+
+        while True:
+            data, _ = self.udp_socket.recvfrom(1024)
+            client_id = client.get_id()
+            msg = f'{client_id}> {data.decode()}'
+            self.chat_rooms[room_name].broadcast(client_id, msg)
+            print(msg)
+            if data is None:
+                break
+
+        client.tcp_socket.close()
+
+    def establish_room(self, client: ChatClient) -> str:
+        data = client.tcp_socket.recv(self.buffer_size)
+        data_str = data.decode('utf-8')
+
+        room_name, method, max_clients = data_str.split(':', 2)
+        if method == "join":
+            self.chat_rooms[room_name].add_client(client)
+        if method == "create":
+            new_room = ChatRoom(room_name, int(max_clients))
+            self.chat_rooms[room_name] = new_room
+            self.chat_rooms[room_name].add_client(client)
+
+        return room_name
 
     def get_available_rooms(self) -> []:
         available_rooms = []
@@ -73,3 +101,18 @@ class Server:
             if not chat_room.is_full():
                 available_rooms.append(chat_room)
         return available_rooms
+
+    def notify_available_rooms(self, client: ChatClient):
+        available_rooms = self.get_available_rooms()
+        keys = pickle.dumps(available_rooms)
+        client.tcp_socket.send(keys)
+
+
+def main():
+    address = "localhost"
+    port = 50000
+    Server(address, port)
+
+
+if __name__ == '__main__':
+    main()
