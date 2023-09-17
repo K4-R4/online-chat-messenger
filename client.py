@@ -6,6 +6,7 @@ import threading
 
 class Client:
     def __init__(self, svr_address: str, svr_port: int):
+        self.clt_id = ""
         self.svr_address = svr_address
         self.svr_port = svr_port
         self.room_name = ""
@@ -28,9 +29,11 @@ class Client:
             sys.exit(1)
 
     def join_room(self):
+        # todo
         data = self.tcp_socket.recv(1024)
         data_str = data.decode('utf-8')
-        self.room_address, self.room_port = data_str.split(":", 1)
+        self.room_address, self.room_port, self.clt_id = data_str.split(":", 2)
+
         data = self.tcp_socket.recv(1024)
         available_room = pickle.loads(data)
         print(available_room)
@@ -62,7 +65,7 @@ class Client:
             msg = input('Enter a message (or "quit" to exit): ')
             if msg == 'quit':
                 break
-            formatted_msg = f'message: {self.room_name}: {len(msg)}: {msg}'
+            formatted_msg = f'{self.clt_id}:{self.room_name}:{len(msg)}:{msg}'
             self.udp_socket.sendto(formatted_msg.encode("utf-8"), (self.svr_address, int(self.svr_port)))
 
         self.tcp_socket.close()
