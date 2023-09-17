@@ -35,8 +35,8 @@ class ChatRoom:
         self.clients.pop(client_id)
 
     def send_to_all(self, from_id, message: str) -> None:
-        for client_id, client in self.clients:
-            if client_id == from_id:
+        for client_id, client in self.clients.items():
+            if client_id != from_id:
                 continue
             client.send(message)
 
@@ -75,7 +75,7 @@ class Server:
             data, _ = self.udp_socket.recvfrom(1024)
             client_id = client.get_id()
             msg = f'{client_id}> {data.decode()}'
-            self.chat_rooms[room_name].broadcast(client_id, msg)
+            self.chat_rooms[room_name].send_to_all(client_id, msg)
             print(msg)
             if data is None:
                 break

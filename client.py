@@ -8,6 +8,7 @@ class Client:
     def __init__(self, svr_address: str, svr_port: int):
         self.svr_address = svr_address
         self.svr_port = svr_port
+        self.room_name = ""
         self.room_address = ""
         self. room_port = -1
         self.tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -15,9 +16,9 @@ class Client:
 
         self.connect_server()
         self.join_room()
-        print("hi")
-        thread = threading.Thread(target=self.chat)
+        thread = threading.Thread(target=self.receive)
         thread.start()
+        self.send()
 
     def connect_server(self):
         try:
@@ -34,16 +35,16 @@ class Client:
         available_room = pickle.loads(data)
         print(available_room)
         room_name = input('Select room or Input new room: ')
-        if room_name not in available_room:
+        self.room_name = room_name
+        if room_name in available_room:
+            room_cnf = f'{room_name}:join'
+            self.tcp_socket.send(room_cnf.encode('utf-8'))
+        else:
             max_clients = input('Input max clients: ')
             room_cnf = f'{room_name}:{max_clients}'
             self.tcp_socket.send(room_cnf.encode('utf-8'))
 
-        else:
-            room_cnf = f'{room_name}:join'
-            self.tcp_socket.send(room_cnf.encode('utf-8'))
-
-    def chat(self):
+    def receive(self):
         self.udp_socket.bind((self.room_address, int(self.room_port)))
         while True:
             try:
@@ -56,12 +57,22 @@ class Client:
             except ConnectionResetError:
                 break
 
+    def send(self):
+        while True:
+            msg = input('Enter a message (or "quit" to exit): ')
+            if msg == 'quit':
+                break
+            formatted_msg = f'message: {self.room_name}: {len(msg)}: {msg}'
+            self.udp_socket.sendto(formatted_msg.encode("utf-8"), (self.svr_address, int(self.svr_port)))
+
+        self.tcp_socket.close()
+        self.udp_socket.close()
+        print('Disconnected from the server.')
+
 
 def main():
     svr_address = "localhost"
     svr_port = 50000
-    clt_address = "localhost"
-    clt_port = 50001
     Client(svr_address, svr_port)
 
 
