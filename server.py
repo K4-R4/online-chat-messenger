@@ -14,7 +14,7 @@ class ChatClient:
         udp_socket.sendto(message.encode('utf-8'), (self.address, self.port))
         udp_socket.close()
 
-    def get_id(self):
+    def get_id(self) -> str:
         return f'{self.address}:{self.port}'
 
 
@@ -58,10 +58,10 @@ class Server:
         tcp_socket.listen()
 
         while True:
-            conn, client_address = tcp_socket.accept()
-            address, port = client_address
-            client = ChatClient(conn, address, port)
-            conn.send(f'{address}:{port}'.encode('utf-8'))
+            conn, client_info = tcp_socket.accept()
+            clt_address, clt_port = client_info
+            client = ChatClient(conn, clt_address, clt_port)
+            conn.send(f'{clt_address}:{clt_port}'.encode('utf-8'))
 
             thread = threading.Thread(target=self.establish_chat, args=(client,))
             thread.start()
@@ -87,11 +87,11 @@ class Server:
 
         room_name, method, max_clients = data_str.split(':', 2)
         if method == "join":
-            self.chat_rooms[room_name].add_client(client)
+            self.chat_rooms[room_name].add_client(client.get_id(), client)
         if method == "create":
             new_room = ChatRoom(room_name, int(max_clients))
             self.chat_rooms[room_name] = new_room
-            self.chat_rooms[room_name].add_client(client)
+            self.chat_rooms[room_name].add_client(client.get_id(), client)
 
         return room_name
 
